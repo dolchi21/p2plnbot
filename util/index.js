@@ -284,6 +284,17 @@ const getUserI18nContext = async (user) => {
   return i18n.createContext(user.lang);
 }
 
+async function countGroupBy(Model, fieldName, filter) {
+  const data = await Model.aggregate([
+      { $match: filter },
+      { $group: { _id: `$${fieldName}`, total: { $count: {} } } }
+  ])
+  return data.reduce((sum, item) => {
+      sum[item._id] = item.total
+      return sum
+  }, {})
+}
+
 module.exports = {
   isIso4217,
   plural,
@@ -302,4 +313,5 @@ module.exports = {
   deleteOrderFromChannel,
   getOrderChannel,
   getUserI18nContext,
+  countGroupBy,
 };

@@ -1,19 +1,8 @@
 //@ts-check
 const logger = require('../../../logger');
 const { Community, Order, User } = require("../../../models");
-const { parseArgs, getCurrency } = require("../../../util");
+const { parseArgs, getCurrency, countGroupBy } = require("../../../util");
 const { validateUser } = require("../../validations");
-
-async function findCommunities(currency) {
-    const communities = await Community.find({ currencies: currency })
-    //const userCount = await getUserCountByCommunity()
-    const orderCount = await getOrderCountByCommunity()
-    return communities.map(comm => {
-        //comm.users = userCount[comm.id] || 0
-        comm.orders = orderCount[comm.id] || 0
-        return comm
-    })
-}
 
 exports.findCommunity = async ctx => {
     try {
@@ -24,42 +13,25 @@ exports.findCommunity = async ctx => {
         const currency = getCurrency(u_fiatCode.toUpperCase())
         if (!currency) return ctx.reply('InvalidCurrencyCode')
 
-        const communities = await findCommunities(currency.code)
-        communities.sort((a, b) => a.orders - b.orders)
+        const communities = await Community.find({ currencies: currency.code })
 
-        const inline_keyboard = []
-        while (communities.length > 0) {
-            const lastTwo = communities.splice(-2)
-            const lineBtn = lastTwo.reverse().map(comm => ({
-                text: `${comm.name}`,
-                callback_data: `communityInfo_${comm._id}`
-            }))
-            inline_keyboard.push(lineBtn)
-        }
-        const text = 'Selecciona la comunidad'
-        const res = await ctx.reply(text, {
-            reply_markup: { inline_keyboard }
+        const userCount = await countGroupBy(User, 'default_community_id', {})
+        const yesterday = new Date()
+        yesterday.setHours(yesterday.getHours() - 24 * 10)
+        const orderCount = await countGroupBy(Order, 'community_id', {
+            status: 'SUCCESS',
+            created_at: {
+                $gte: yesterday
+            }
+        })
+
+        return ctx.scene.enter('FIND_COMMUNITY_WIZARD', {
+            user,
+            communities,
+            orderCount,
+            userCount
         })
     } catch (error) {
         logger.error(error)
     }
-}
-
-async function getOrderCountByCommunity() {
-    const data = await Order.aggregate([
-        { $group: { _id: "$community_id", total: { $count: {} } } }
-    ])
-    return data.reduce((sum, item) => {
-        sum[item._id] = item.total
-        return sum
-    }, {})
-}
-async function getUserCountByCommunity() {
-    const data = await User.aggregate([
-        { $group: { _id: "$default_community_id", total: { $count: {} } } }
-    ])
-    return data.reduce((sum, item) => {
-        sum[item._id] = item.total
-        return sum
-    }, {})
 }
