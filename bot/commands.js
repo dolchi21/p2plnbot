@@ -234,17 +234,17 @@ const saveUserReview = async (targetUser, rating) => {
 
 const cancelAddInvoice = async (ctx, order, job) => {
   try {
+    let userAction = false;
     if (!job) {
       ctx.deleteMessage();
       ctx.scene.leave();
-    }
-    let userAction = false;
-    if (!order) {
       userAction = true;
-      const orderId = !!ctx && ctx.update.callback_query.message.text;
-      if (!orderId) return;
-      order = await Order.findOne({ _id: orderId });
-      if (!order) return;
+      if (!order) {
+        const orderId = !!ctx && ctx.update.callback_query.message.text;
+        if (!orderId) return;
+        order = await Order.findOne({ _id: orderId });
+        if (!order) return;
+      }
     }
 
     // We make sure the seller can't send us sats now
@@ -302,6 +302,7 @@ const cancelAddInvoice = async (ctx, order, job) => {
         await messages.publishSellOrderMessage(ctx, sellerUser, order, i18nCtx);
       }
       await order.save();
+
       if (!userAction) {
         if (job) {
           await messages.toAdminChannelBuyerDidntAddInvoiceMessage(
@@ -408,15 +409,19 @@ const showHoldInvoice = async (ctx, bot, order) => {
 
 const cancelShowHoldInvoice = async (ctx, order, job) => {
   try {
-    if (!job) ctx.deleteMessage();
     let userAction = false;
-    if (!order) {
+    if (!job) {
+      ctx.deleteMessage();
+      ctx.scene.leave();
       userAction = true;
-      const orderId = !!ctx && ctx.update.callback_query.message.text;
-      if (!orderId) return;
-      order = await Order.findOne({ _id: orderId });
-      if (!order) return;
+      if (!order) {
+        const orderId = !!ctx && ctx.update.callback_query.message.text;
+        if (!orderId) return;
+        order = await Order.findOne({ _id: orderId });
+        if (!order) return;
+      }
     }
+
     // We make sure the seller can't send us sats now
     await cancelHoldInvoice({ hash: order.hash });
 
